@@ -179,8 +179,10 @@ subroutine euler(in_dir, angle)
     real :: s, arg, rn1
     real :: alpha, beta, gamma, theta, phi
     real :: sco1, sco2
-    real :: r11, r12, r13, r21, r22, r23, r31, r32, r33 ! rotation matrix elements
-    real :: S0x, S0y, S0z ! Pre-transformation propagation vector?
+    real :: r(3,3)
+    real :: s0(3)
+    !real :: r11, r12, r13, r21, r22, r23, r31, r32, r33 ! rotation matrix elements
+    !real :: S0x, S0y, S0z ! Pre-transformation propagation vector?
 
     ! Normalize direction to a unit vector (in case it wasn't)
     s = norm2(in_dir)
@@ -223,20 +225,18 @@ subroutine euler(in_dir, angle)
     ! We have now scattered the particle from the z-axis and must rotate it
     !  to the original unscattered particle direction. 
     ! Calculates rotation matrix
-    r11 = cos(alpha)*cos(beta)*cos(gamma)-sin(alpha)*sin(gamma)
-    r12 = cos(beta)*sin(alpha)*cos(gamma)+cos(alpha)*sin(gamma)
-    r13 =-sin(beta)*cos(gamma)
-    r21 =-sin(gamma)*cos(beta)*cos(alpha)-sin(alpha)*cos(gamma)
-    r22 =-sin(gamma)*cos(beta)*sin(alpha)+cos(alpha)*cos(gamma)
-    r23 = sin(beta)*sin(gamma)
-    r31 = sin(beta)*cos(alpha)
-    r32 = sin(alpha)*sin(beta)
-    r33 = cos(beta)
-    S0x = sin(theta)*cos(phi)
-    S0y = sin(theta)*sin(phi)
-    S0z = cos(theta)
+    r(1,1) = cos(alpha)*cos(beta)*cos(gamma)-sin(alpha)*sin(gamma)
+    r(1,2) = cos(beta)*sin(alpha)*cos(gamma)+cos(alpha)*sin(gamma)
+    r(1,3) =-sin(beta)*cos(gamma)
+    r(2,1) =-sin(gamma)*cos(beta)*cos(alpha)-sin(alpha)*cos(gamma)
+    r(2,2) =-sin(gamma)*cos(beta)*sin(alpha)+cos(alpha)*cos(gamma)
+    r(2,3) = sin(beta)*sin(gamma)
+    r(3,1) = sin(beta)*cos(alpha)
+    r(3,2) = sin(alpha)*sin(beta)
+    r(3,3) = cos(beta)
+    s0 = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
     ! Unit propagation vector of the scattered particle in the original frame
-    scatter_dir = [r11*S0x+r21*S0y+r31*S0z, r12*S0x+r22*S0y+r32*S0z, r13*S0x+r23*S0y+r33*S0z]
+    scatter_dir = matmul(r, s0)
 
     in_dir = scatter_dir
 
@@ -298,9 +298,10 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
         call random_number(theta)
         theta = acos(2*theta - 1) ! Properly sampled 
 
-      ! Convert angles to cartesian vector
+       ! Convert angles to cartesian vector
         velocity = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
 
+        ! Make sure the initial velocity is pointing into the mediator (v_z > 0)
         if (velocity(3) < 0) then 
             velocity(3) = -1. * velocity(3)
         end if
