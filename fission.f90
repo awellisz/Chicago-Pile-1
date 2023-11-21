@@ -41,8 +41,11 @@ subroutine energy_loss(energy_in, angle)
     Z = 12 ! Graphite (C12)
 
     ! Approximation: round any energy below 0.1 eV to 0.02 eV
-    if (energy_in < 1.e-7) then 
+    if (energy_in < 1.e-7) then
         energy_out = 2.e-8
+        ! Scatter angle
+        call random_number(rn1)
+        angle = acos((2. * rn1) - 1.)
     else
         ! Maximum recoil energy that can be imparted
         max_recoil_energy = ((4 * Z) / ((1 + Z)**2)) * energy_in
@@ -50,12 +53,7 @@ subroutine energy_loss(energy_in, angle)
         ! Probability distribution for recoil energies is flat from 0 to max
         max_recoil_energy = max_recoil_energy * rn1 
         energy_out = energy_in - max_recoil_energy
-    end if
-
-    if (energy_in < 1.e-7) then 
-        call random_number(rn1)
-        angle = acos((2. * rn1) - 1.)
-    else 
+        ! Scatter angle
         eta = acos(sqrt((max_recoil_energy/energy_in)*(((1.+Z)**2)/(4.*Z))))
         angle = atan((sin(2.*eta))/((1./Z) - cos(2.*eta)))
     end if
@@ -167,43 +165,34 @@ end subroutine cross_section
 subroutine euler(in_dir, angle)
     implicit none
     real, intent(inout) :: in_dir(3)
-    !real, intent(inout) :: Ex, Ey, Ez 
     real, intent(in) :: angle 
-    !real, intent(out) :: Sx, Sy, Sz
     real :: scatter_dir(3)
-
-    ! real :: scatter_dir
 
     real :: Ex, Ey, Ez
 
-    real :: s, arg, rn1
+    real :: arg, rn1
     real :: alpha, beta, gamma, theta, phi
     real :: sco1, sco2
-    real :: r(3,3)
-    real :: s0(3)
-    !real :: r11, r12, r13, r21, r22, r23, r31, r32, r33 ! rotation matrix elements
-    !real :: S0x, S0y, S0z ! Pre-transformation propagation vector?
+    real :: r(3,3) ! Rotation matrix
+    real :: s0(3) 
 
     ! Normalize direction to a unit vector (in case it wasn't)
-    s = norm2(in_dir)
-    in_dir = in_dir / s
+    in_dir = in_dir / norm2(in_dir)
     Ex = in_dir(1)
     Ey = in_dir(2)
     Ez = in_dir(3)
 
     beta = acos(Ez)
 
-    ! Watch out for divide by zero errors here
-    arg = Ey / sin(beta)
-    if (abs(arg) > 1.0) then  ! huh??
-        arg = arg / (1.0001 * abs(arg))
-    end if 
-
-    alpha = asin(arg)
-
-    ! Approximation?
+    ! Approximation
     if (abs(beta) < 0.027) then 
         alpha = 0.0
+    else 
+        arg = Ey / sin(beta)
+        if (abs(arg) >= 1.0) then  ! huh??
+            arg = arg / (1.0001 * abs(arg))
+        end if 
+        alpha = asin(arg)
     end if 
 
     sco1 = abs(cos(alpha) * sin(beta) + Ex)
