@@ -271,11 +271,10 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
     real :: rn       ! For random numbers
     
     pi = 4 * atan(1.0)
-    NA = 6.023e23 
-    rho = 2.16 ! g/cm^3
-    Z = 12     ! g/mol
 
-    !print *, "Hello world!"
+    NA = 6.023e23 ! 1 mol
+    rho = 2.16    ! g/cm^3
+    Z = 12        ! g/mol
 
     num_backscattered = 0
     num_traversed = 0
@@ -296,13 +295,15 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
         ! Build unit velocity vector
         call random_number(phi)
         phi = 2*pi * phi
-        theta = -1.
-        ! Make sure theta is positive
-        do while (theta < 0)
-            call random_number(theta)
-            theta = acos(2*theta - 1) ! Proper isotropic direction
-        ! Convert angles to cartesian vector
+        call random_number(theta)
+        theta = acos(2*theta - 1) ! Properly sampled 
+
+      ! Convert angles to cartesian vector
         velocity = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
+
+        if (velocity(3) < 0) then 
+            velocity(3) = -1. * velocity(3)
+        end if
 
         ! Individual neutron loop
         ! (Exits loop if neutron backscatters/traverses/is absorbed)
