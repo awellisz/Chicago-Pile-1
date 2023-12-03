@@ -4,22 +4,45 @@ program fission
     integer :: num_neutrons
     ! Thickness of graphite slab, in cm
     integer :: slab_thickness 
+    ! Neutron energy (for simulate_energy)
+    real(8) :: energy
     ! Counters
     integer :: num_absorbed, num_backscattered, num_thermalized, num_traversed
     ! File I/O
     integer :: io
+    integer :: j
+
     
-    num_neutrons = 5000
+    num_neutrons = 100000
 
-    open(unit=io, file="test1.csv", status='replace', action='write')
-    write(io,*)"slab_thickness,n_absorbed,n_backscattered,n_traversed,n_thermalized"
+    ! open(unit=io, file="100000neutrons.csv", status='replace', action='write')
+    ! write(io,*)"slab_thickness,n_absorbed,n_backscattered,n_traversed,n_thermalized"
 
-    do slab_thickness = 1, 51, 3
-        print *,"Simulating D = ",slab_thickness,"..."
-        call run_simulation(num_neutrons, slab_thickness, num_absorbed, num_backscattered, num_thermalized, num_traversed)
-        ! Write to file 
-        write(io, *)slab_thickness,",",num_absorbed,",",num_backscattered,",",num_traversed,",",num_thermalized
+    ! Simulate many slab thicknesses to find optimum
+    ! do slab_thickness = 1, 100, 2
+    !     print *,"Simulating D = ",slab_thickness,"..."
+    !     call run_simulation(num_neutrons, slab_thickness, num_absorbed, num_backscattered, num_thermalized, num_traversed)
+    !     ! Write to file 
+    !     write(io, *)slab_thickness,",",num_absorbed,",",num_backscattered,",",num_traversed,",",num_thermalized
+    ! end do 
+
+
+    ! Simulate many neutrons at optimal thickness to show energy spectrum
+    open(unit=io,file="neutron_energies5.csv",status='replace',action='write')
+    write(io,*)"energy"
+
+    slab_thickness = 25 ! cm
+
+    do j = 1, num_neutrons
+        call simulate_energy(num_neutrons, slab_thickness, energy)
+        if (energy >= 0) then 
+            write(io, *) energy
+        end if
+        if(modulo(j, 100) == 0) then 
+            print *,j 
+        end if
     end do 
+
 
 end program fission
 
@@ -30,15 +53,15 @@ end program fission
 !   energy_out: final energy
 subroutine energy_loss(energy_in, angle)
     implicit none 
-    real, intent(inout) :: energy_in
+    real(8), intent(inout) :: energy_in
     real, intent(out) :: angle 
-    real :: energy_out
+    real(8) :: energy_out
     real :: rn1
-    real :: max_recoil_energy 
-    real :: Z ! Atomic number
+    real(8) :: max_recoil_energy 
+    real(8) :: Z ! Atomic number
     real :: eta
 
-    Z = 12 ! Graphite (C12)
+    Z = 12. ! Graphite (C12)
 
     ! Approximation: round any energy below 0.1 eV to 0.02 eV
     if (energy_in < 1.e-7) then
@@ -67,7 +90,7 @@ end subroutine energy_loss
 !   energy: the energy of the neutron (in MeV)
 subroutine init_energy(energy)
     implicit none
-    real, intent(out) :: energy
+    real(8), intent(out) :: energy
     real :: rn1, rn2
     real :: prob 
 
@@ -83,7 +106,7 @@ subroutine init_energy(energy)
         prob = sqrt(rn1) * exp(-rn1 / 1.4)
         
         call random_number(rn2)
-        ! Maximum of the distribution as written is 0.5
+        ! Maximum of the distribution as written is less than 0.5
         rn2 = rn2 * 0.5
     enddo
 
@@ -93,30 +116,30 @@ end subroutine init_energy
 ! sample_watt: Samples the Watt distribution for Uranium-235 to choose a random
 !              initial energy of a simulated neutron.
 !   energy: the energy of the neutron (result in MeV)
-! subroutine sample_watt(energy)
-!     implicit none 
-!     real, intent(out) :: energy 
-!     real :: K, L, M, x, y, rn1, rn2 
-!     real :: a, b 
+subroutine sample_watt(energy)
+    implicit none 
+    real(8), intent(out) :: energy 
+    real(8) :: K, L, M, x, y, rn1, rn2 
+    real(8) :: a, b 
 
-!     ! Values for Uranium-235
-!     a = 0.75
-!     b = 1.0
+    ! Values for Uranium-235
+    a = 0.9
+    b = 1.0
 
-!     K = 1 + (b / 8 * a)
-!     L = (K + sqrt(K**2 - 1)) / a 
-!     M = a*L - 1
-!     do while(.true.)
-!         call random_number(rn1)
-!         call random_number(rn2)
-!         x = -log(rn1)
-!         y = -log(rn2)
-!         if ((y - M*(x + 1))**2 < (b * L * x)) then 
-!         E = L * x
-!         exit
-!         endif
-!     enddo
-! end subroutine sample_watt
+    K = 1 + (b / 8 * a)
+    L = (K + sqrt(K**2 - 1)) / a 
+    M = a*L - 1
+    do while(.true.)
+        call random_number(rn1)
+        call random_number(rn2)
+        x = -log(rn1)
+        y = -log(rn2)
+        if ((y - M*(x + 1))**2 < (b * L * x)) then 
+            energy = L * x
+            exit
+        endif
+    enddo
+end subroutine sample_watt
 
 ! cross_section: Calculates the approximate cross section (in barns) for 
 !                absorption and elastic scattering in carbon
@@ -124,10 +147,10 @@ end subroutine init_energy
 ! xelastic: cross section for elastic scattering
 ! xabsorbed: cross section for absorption
 subroutine cross_section(energy, xelastic, xabsorbed)
-    real, intent(in) :: energy
+    real(8), intent(in) :: energy
     real, intent(out) :: xelastic
     real, intent(out) :: xabsorbed
-    real :: energy_eV 
+    real(8) :: energy_eV 
 
     ! We need energy in eV, not MeV
     eev = energy * 1.e6
@@ -250,8 +273,8 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
     real :: velocity(3)          ! Unit velocity vector
     real :: scatter_angle        ! Scattering angle
     real :: scatter_dir          ! Scattering direction unit vector
-    real :: energy               ! Energy
-    real :: energy_out           ! Energy after a scattering event
+    real(8) :: energy               ! Energy
+    real(8) :: energy_out           ! Energy after a scattering event
     real :: xelastic, xabsorbed  ! Cross sections
     real :: dnext                ! Distance to the next interaction point
 
@@ -279,7 +302,8 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
         position(:) = 0
 
         ! Initialize energy 
-        call init_energy(energy)
+        ! call init_energy(energy)
+        call sample_watt(energy)
 
         ! Build unit velocity vector
         call random_number(phi)
@@ -292,15 +316,15 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
 
         ! Make sure the initial velocity is pointing into the mediator (v_z > 0)
         if (velocity(3) < 0) then 
-            velocity(3) = -1. * velocity(3)
+            velocity(3) = -velocity(3)
         end if
 
         ! Individual neutron loop
         ! (Exits loop if neutron backscatters/traverses/is absorbed)
         neutron_loop: do while (.true.)
-
             ! Find cross sections for elastic scattering / absorption
             call cross_section(energy, xelastic, xabsorbed)
+
             ! Determine distance to next interaction
             call random_number(rn)
             ! Depends on total cross section
@@ -328,6 +352,7 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
                 cycle simulation_loop
             end if
 
+
             ! Check for absorption 
             call random_number(rn)
             ! Calculate robability of absorption as ratio of cross sections
@@ -348,3 +373,105 @@ subroutine run_simulation(num_neutrons, slab_thickness,  num_absorbed, &
     end do simulation_loop
 
 end subroutine run_simulation
+
+! Simulates just a single neutron and returns its energy after a particular moderator thickness
+subroutine simulate_energy(num_neutrons, slab_thickness, energy)
+    implicit none
+    integer, intent(in) :: num_neutrons, slab_thickness
+    real(8), intent(out) :: energy
+
+    ! CONSTANTS 
+    real :: NA   ! Avogadro's number
+    real :: rho  ! Density of medium (graphite) 
+    integer :: Z ! atomic number (carbon-12)
+    real :: pi 
+
+    ! PROPERTIES OF NEUTRONS
+    real :: position(3)          ! [x, y, z] position of neutron 
+    real :: theta, phi           ! Angles for generating velocity vector
+    real :: velocity(3)          ! Unit velocity vector
+    real :: scatter_angle        ! Scattering angle
+    real :: scatter_dir          ! Scattering direction unit vector
+    real(8) :: energy_out           ! Energy after a scattering event
+    real :: xelastic, xabsorbed  ! Cross sections
+    real :: dnext                ! Distance to the next interaction point
+
+    ! MISC
+    integer :: i, j  ! For iterating
+    real :: rn       ! For random numbers
+    
+    pi = 4 * atan(1.0)
+
+    NA = 6.023e23 ! 1 mol
+    rho = 2.16    ! g/cm^3
+    Z = 12        ! g/mol
+
+
+    call random_seed() 
+
+    ! Initialize position to origin 
+    position(:) = 0
+
+    ! Initialize energy 
+    call init_energy(energy)
+    ! call sample_watt(energy)
+
+    ! Build unit velocity vector
+    call random_number(phi)
+    phi = 2*pi * phi
+    call random_number(theta)
+    theta = acos(2*theta - 1) ! Properly sampled 
+
+    ! Convert angles to cartesian vector
+    velocity = [sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta)]
+
+    ! Make sure the initial velocity is pointing into the mediator (v_z > 0)
+    if (velocity(3) < 0) then 
+        velocity(3) = -velocity(3)
+    end if
+
+    ! Individual neutron loop
+    ! (Exits loop if neutron backscatters/traverses/is absorbed)
+    do while (.true.)
+
+        ! Find cross sections for elastic scattering / absorption
+        call cross_section(energy, xelastic, xabsorbed)
+        ! Determine distance to next interaction
+        call random_number(rn)
+        ! Depends on total cross section
+        dnext = -log(rn) * Z / ((xelastic + xabsorbed) * rho * NA)
+
+        ! Calculate new position (at interaction)
+        position = position + dnext * velocity
+
+        ! Check for backscattering (Z < 0)
+        if (position(3) < 0.0) then 
+            ! Don't care about backscattered neutrons
+            energy = -1
+            exit
+        end if
+
+        ! Check for traversal (Z > D)
+        if (position(3) > slab_thickness) then 
+            ! Energy is already calculated, exit loop (and function)
+            exit
+        end if
+
+        ! Check for absorption 
+        call random_number(rn)
+        ! Calculate probability of absorption as ratio of cross sections
+        if (rn < (xabsorbed / (xabsorbed + xelastic))) then 
+            ! Don't care about absorbed neutrons
+            energy = -2
+            exit
+        end if
+
+        ! If not backscattered/traversed/absorbed, calculate new energy
+        !  after energy loss and scattering angle.
+        call energy_loss(energy, scatter_angle)
+
+        ! Find the new trajectory
+        call euler(velocity, scatter_angle)
+
+    end do
+end subroutine simulate_energy
